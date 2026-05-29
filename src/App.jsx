@@ -36,55 +36,59 @@ export default function App() {
   // --- ENGINE GAME LOOP (Pillar 2: Real-time automation) ---
   useEffect(() => {
     const interval = setInterval(() => {
-      // Temporary tracker for what is mined this exact second
+      // 1. Temporary tracker for what is mined this exact second
       let tickMined = { copper: 0, titanium: 0, antimatter: 0 };
 
-      setFleet((currentFleet) =>
-        currentFleet.map((ship) => {
-          // Rule A: Flight countdown
-          if (ship.status === '🚀 En Route') {
-            const nextTime = ship.timeRemaining - 1;
-            return {
-              ...ship,
-              timeRemaining: nextTime,
-              status: nextTime <= 0 ? '⛏️ Mining' : '🚀 En Route'
-            };
-          }
+      // 2. Calculate the new fleet data directly using the current 'fleet' state
+      const updatedFleet = fleet.map((ship) => {
+        // Rule A: Flight countdown
+        if (ship.status === '🚀 En Route') {
+          const nextTime = ship.timeRemaining - 1;
+          return {
+            ...ship,
+            timeRemaining: nextTime,
+            status: nextTime <= 0 ? '⛏️ Mining' : '🚀 En Route'
+          };
+        }
+        
+        // Rule B: Mining extraction
+        if (ship.status === '⛏️ Mining') {
+          const planet = PLANET_DATA[ship.planet];
           
-          // Rule B: Mining extraction
-          if (ship.status === '⛏️ Mining') {
-            const planet = PLANET_DATA[ship.planet];
-            
-            // Efficiency Penalty if ship is underpowered
-            let efficiencyModifier = ship.power >= planet.minPower ? 1 : 0.25;
+          // Efficiency Penalty if ship is underpowered
+          let efficiencyModifier = ship.power >= planet.minPower ? 1 : 0.25;
 
-            // Calculate yield based on ship power
-            const amount = Math.ceil((ship.power / 10) * planet.yield * efficiencyModifier);
-            
-            // Add to the global tick tracker
-            tickMined[planet.resource] += amount;
-            
-            return {
-              ...ship,
-              totalMined: ship.totalMined + amount
-            };
-          }
+          // Calculate yield based on ship power
+          const amount = Math.ceil((ship.power / 10) * planet.yield * efficiencyModifier);
           
-          return ship;
-        })
-      );
+          // Add to the global tick tracker
+          tickMined[planet.resource] += amount;
+          
+          return {
+            ...ship,
+            totalMined: ship.totalMined + amount
+          };
+        }
+        
+        return ship;
+      });
 
-      // Deposit the tick tracker into the global inventory
-      setInventory((prev) => ({
-        copper: prev.copper + tickMined.copper,
-        titanium: prev.titanium + tickMined.titanium,
-        antimatter: prev.antimatter + tickMined.antimatter
-      }));
+      // 3. Save the new fleet layout to state
+      setFleet(updatedFleet);
+
+      // 4. Deposit the tick tracker into the global inventory ONLY if something was mined
+      if (tickMined.copper > 0 || tickMined.titanium > 0 || tickMined.antimatter > 0) {
+        setInventory((prev) => ({
+          copper: prev.copper + tickMined.copper,
+          titanium: prev.titanium + tickMined.titanium,
+          antimatter: prev.antimatter + tickMined.antimatter
+        }));
+      }
 
     }, 1000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [fleet]); // Dependency ensures the loop always has the latest data
 
   // --- FOOLPROOF VALIDATION (Pillar 4) ---
   const isFormInvalid = 
